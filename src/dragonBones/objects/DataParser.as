@@ -130,17 +130,17 @@
 			return null;
 		}
 		
-		public static function parseAnimationDataByAnimationRawData(animationRawData:Object, armatureData:ArmatureData, isGlobalData:Boolean = false):AnimationData
+		public static function parseAnimationDataByAnimationRawData(animationRawData:Object, armatureData:ArmatureData):AnimationData
 		{
 			var animationData:AnimationData = armatureData.animationDataList[0];
 			
 			if(animationRawData is XML)
 			{
-				return XMLDataParser.parseAnimationData((animationRawData as XML), armatureData, animationData.frameRate, isGlobalData);
+				return XMLDataParser.parseAnimationData((animationRawData as XML), armatureData, animationData.frameRate);
 			}
 			else
 			{
-				return ObjectDataParser.parseAnimationData(animationRawData, armatureData, animationData.frameRate, isGlobalData);
+				return ObjectDataParser.parseAnimationData(animationRawData, armatureData, animationData.frameRate);
 			}
 		}
 		

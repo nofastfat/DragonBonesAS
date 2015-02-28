@@ -1,5 +1,8 @@
 package dragonBones.utils
 {
+	import flash.geom.Matrix;
+	import flash.geom.Point;
+	
 	import dragonBones.animation.TimelineState;
 	import dragonBones.objects.AnimationData;
 	import dragonBones.objects.ArmatureData;
@@ -8,13 +11,9 @@ package dragonBones.utils
 	import dragonBones.objects.Frame;
 	import dragonBones.objects.SkinData;
 	import dragonBones.objects.SlotData;
-	import dragonBones.objects.Timeline;
 	import dragonBones.objects.TransformFrame;
 	import dragonBones.objects.TransformTimeline;
 	import dragonBones.utils.TransformUtil;
-	
-	import flash.geom.Matrix;
-	import flash.geom.Point;
 	
 	/** @private */
 	public final class DBDataUtil
@@ -33,7 +32,7 @@ package dragonBones.utils
 					if(parentBoneData)
 					{
 						boneData.transform.copy(boneData.global);
-						TransformUtil.globalToLocal(boneData.transform, parentBoneData.global);
+						TransformUtil.transformPointWithParent(boneData.transform, parentBoneData.global);
 					}
 				}
 			}
@@ -45,23 +44,12 @@ package dragonBones.utils
 			var i:int = animationDataList.length;
 			while(i --)
 			{
-				transformAnimationData(animationDataList[i], armatureData, false);
+				transformAnimationData(animationDataList[i], armatureData);
 			}
 		}
 		
-		public static function transformRelativeAnimationData(animationData:AnimationData, armatureData:ArmatureData):void
+		public static function transformAnimationData(animationData:AnimationData, armatureData:ArmatureData):void
 		{
-			
-		}
-		
-		public static function transformAnimationData(animationData:AnimationData, armatureData:ArmatureData, isGlobalData:Boolean):void
-		{
-			if(!isGlobalData)
-			{
-				transformRelativeAnimationData(animationData, armatureData);
-				return;
-			}
-			
 			var skinData:SkinData = armatureData.getSkinData(null);
 			var boneDataList:Vector.<BoneData> = armatureData.boneDataList;
 			var slotDataList:Vector.<SlotData>;
@@ -106,8 +94,8 @@ package dragonBones.utils
 					frame.transform.y -= boneData.transform.y;
 					frame.transform.skewX -= boneData.transform.skewX;
 					frame.transform.skewY -= boneData.transform.skewY;
-					frame.transform.scaleX /= boneData.transform.scaleX;
-					frame.transform.scaleY /= boneData.transform.scaleY;
+					frame.transform.scaleX -= boneData.transform.scaleX;
+					frame.transform.scaleY -= boneData.transform.scaleY;
 					
 					if(!timeline.transformed)
 					{
@@ -132,8 +120,8 @@ package dragonBones.utils
 					frame.transform.y -= originTransform.y;
 					frame.transform.skewX = TransformUtil.formatRadian(frame.transform.skewX - originTransform.skewX);
 					frame.transform.skewY = TransformUtil.formatRadian(frame.transform.skewY - originTransform.skewY);
-					frame.transform.scaleX /= originTransform.scaleX;
-					frame.transform.scaleY /= originTransform.scaleY;
+					frame.transform.scaleX -= originTransform.scaleX;
+					frame.transform.scaleY -= originTransform.scaleY;
 					
 					if(!timeline.transformed)
 					{
@@ -198,6 +186,12 @@ package dragonBones.utils
 				var parentTimeline:TransformTimeline = animationData.getTimeline(parentData.name);
 				if(parentTimeline)
 				{
+					/*
+					var currentTransform:DBTransform = new DBTransform();
+					getTimelineTransform(parentTimeline, frame.position, currentTransform, true);
+					TransformUtil.transformPointWithParent(frame.transform, currentTransform);
+					*/
+					
 					var parentTimelineList:Vector.<TransformTimeline> = new Vector.<TransformTimeline>;
 					var parentDataList:Vector.<BoneData> = new Vector.<BoneData>;
 					while(parentTimeline)
@@ -217,42 +211,50 @@ package dragonBones.utils
 					
 					var i:int = parentTimelineList.length;
 					
-					//var helpMatrix:Matrix = new Matrix();
+					var helpMatrix:Matrix = new Matrix();
 					var globalTransform:DBTransform;
-					var globalTransformMatrix:Matrix = new Matrix();
-					
 					var currentTransform:DBTransform = new DBTransform();
-					var currentTransformMatrix:Matrix = new Matrix();
-					
 					while(i --)
 					{
 						parentTimeline = parentTimelineList[i];
 						parentData = parentDataList[i];
 						getTimelineTransform(parentTimeline, frame.position, currentTransform, !globalTransform);
 						
-						if(!globalTransform)
+						if(globalTransform)
 						{
-							globalTransform = new DBTransform();
-							globalTransform.copy(currentTransform);	
+							//if(inheritRotation)
+							//{
+								globalTransform.skewX += currentTransform.skewX + parentTimeline.originTransform.skewX + parentData.transform.skewX;
+								globalTransform.skewY += currentTransform.skewY + parentTimeline.originTransform.skewY + parentData.transform.skewY;
+							//}
+							
+							//if(inheritScale)
+							//{
+							//	globalTransform.scaleX *= currentTransform.scaleX + parentTimeline.originTransform.scaleX;
+							//	globalTransform.scaleY *= currentTransform.scaleY + parentTimeline.originTransform.scaleY;
+							//}
+							//else
+							//{
+								globalTransform.scaleX = currentTransform.scaleX + parentTimeline.originTransform.scaleX + parentData.transform.scaleX;
+								globalTransform.scaleY = currentTransform.scaleY + parentTimeline.originTransform.scaleY + parentData.transform.scaleY;
+							//}
+								
+							var x:Number = currentTransform.x + parentTimeline.originTransform.x + parentData.transform.x;
+							var y:Number = currentTransform.y + parentTimeline.originTransform.y + parentData.transform.y;
+							
+							globalTransform.x = helpMatrix.a * x + helpMatrix.c * y + helpMatrix.tx;
+							globalTransform.y = helpMatrix.d * y + helpMatrix.b * x + helpMatrix.ty;
 						}
 						else
 						{
-							currentTransform.x += parentTimeline.originTransform.x + parentData.transform.x;
-							currentTransform.y += parentTimeline.originTransform.y + parentData.transform.y;
-							
-							currentTransform.skewX += parentTimeline.originTransform.skewX + parentData.transform.skewX;
-							currentTransform.skewY += parentTimeline.originTransform.skewY + parentData.transform.skewY;
-							
-							currentTransform.scaleX *= parentTimeline.originTransform.scaleX * parentData.transform.scaleX;
-							currentTransform.scaleY *= parentTimeline.originTransform.scaleY * parentData.transform.scaleY;
-							
-							TransformUtil.transformToMatrix(currentTransform, currentTransformMatrix, true);
-							currentTransformMatrix.concat(globalTransformMatrix);
-							TransformUtil.matrixToTransform(currentTransformMatrix, globalTransform, currentTransform.scaleX * globalTransform.scaleX >= 0, currentTransform.scaleY * globalTransform.scaleY >= 0);
+							globalTransform = new DBTransform();
+							globalTransform.copy(currentTransform);
 						}
-						TransformUtil.transformToMatrix(globalTransform, globalTransformMatrix, true);
+						
+						TransformUtil.transformToMatrix(globalTransform, helpMatrix, true);
 					}
-					TransformUtil.globalToLocal(frame.transform, globalTransform);
+					TransformUtil.transformPointWithParent(frame.transform, globalTransform);
+					
 				}
 			}
 		}

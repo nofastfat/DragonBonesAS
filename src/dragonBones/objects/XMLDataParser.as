@@ -7,16 +7,16 @@
 	 * @version 2.0
 	 */
 	
+	import flash.geom.ColorTransform;
+	import flash.geom.Point;
+	import flash.geom.Rectangle;
+	import flash.utils.Dictionary;
+	
 	import dragonBones.core.DragonBones;
 	import dragonBones.core.dragonBones_internal;
 	import dragonBones.textures.TextureData;
 	import dragonBones.utils.ConstValues;
 	import dragonBones.utils.DBDataUtil;
-	
-	import flash.geom.ColorTransform;
-	import flash.geom.Point;
-	import flash.geom.Rectangle;
-	import flash.utils.Dictionary;
 	
 	use namespace dragonBones_internal;
 	
@@ -78,7 +78,6 @@
 			switch (version)
 			{
 				case "2.3":
-				case "3.0":
 					//Update2_3To3_0.format(rawData as XML);
 					break;
 				
@@ -93,23 +92,22 @@
 			
 			var data:SkeletonData = new SkeletonData();
 			data.name = rawData.@[ConstValues.A_NAME];
-			var isGlobalData:Boolean = rawData.@[ConstValues.A_IS_GLOBAL] == "0" ? false : true;
 			for each(var armatureXML:XML in rawData[ConstValues.ARMATURE])
 			{
-				data.addArmatureData(parseArmatureData(armatureXML, data, frameRate, isGlobalData, ifSkipAnimationData, outputAnimationDictionary));
+				data.addArmatureData(parseArmatureData(armatureXML, data, frameRate, ifSkipAnimationData, outputAnimationDictionary));
 			}
 			
 			return data;
 		}
 		
-		private static function parseArmatureData(armatureXML:XML, data:SkeletonData, frameRate:uint, isGlobalData:Boolean, ifSkipAnimationData:Boolean, outputAnimationDictionary:Dictionary):ArmatureData
+		private static function parseArmatureData(armatureXML:XML, data:SkeletonData, frameRate:uint, ifSkipAnimationData:Boolean, outputAnimationDictionary:Dictionary):ArmatureData
 		{
 			var armatureData:ArmatureData = new ArmatureData();
 			armatureData.name = armatureXML.@[ConstValues.A_NAME];
 			
 			for each(var boneXML:XML in armatureXML[ConstValues.BONE])
 			{
-				armatureData.addBoneData(parseBoneData(boneXML, isGlobalData));
+				armatureData.addBoneData(parseBoneData(boneXML));
 			}
 			
 			for each(var skinXML:XML in armatureXML[ConstValues.SKIN])
@@ -117,10 +115,7 @@
 				armatureData.addSkinData(parseSkinData(skinXML, data));
 			}
 			
-			if(isGlobalData)
-			{
-				DBDataUtil.transformArmatureData(armatureData);
-			}
+			DBDataUtil.transformArmatureData(armatureData);
 			armatureData.sortBoneDataList();
 			
 			var animationXML:XML;
@@ -136,7 +131,7 @@
 				{
 					if(index == 0)
 					{
-						armatureData.addAnimationData(parseAnimationData(animationXML, armatureData, frameRate, isGlobalData));
+						armatureData.addAnimationData(parseAnimationData(animationXML, armatureData, frameRate));
 					}
 					else if(outputAnimationDictionary != null)
 					{
@@ -149,7 +144,7 @@
 			{
 				for each(animationXML in armatureXML[ConstValues.ANIMATION])
 				{
-					armatureData.addAnimationData(parseAnimationData(animationXML, armatureData, frameRate, isGlobalData));
+					armatureData.addAnimationData(parseAnimationData(animationXML, armatureData, frameRate));
 				}
 			}
 			
@@ -166,20 +161,17 @@
 			return armatureData;
 		}
 		
-		private static function parseBoneData(boneXML:XML, isGlobalData:Boolean):BoneData
+		private static function parseBoneData(boneXML:XML):BoneData
 		{
 			var boneData:BoneData = new BoneData();
 			boneData.name = boneXML.@[ConstValues.A_NAME];
 			boneData.parent = boneXML.@[ConstValues.A_PARENT];
 			boneData.length = Number(boneXML.@[ConstValues.A_LENGTH]);
 			boneData.inheritRotation = getBoolean(boneXML, ConstValues.A_INHERIT_ROTATION, true);
-			boneData.inheritScale = getBoolean(boneXML, ConstValues.A_INHERIT_SCALE, true);
+			boneData.inheritScale = getBoolean(boneXML, ConstValues.A_INHERIT_SCALE, false);
 			
-			parseTransform(boneXML[ConstValues.TRANSFORM][0], boneData.transform);
-			if(isGlobalData)//绝对数据
-			{
-				boneData.global.copy(boneData.transform);
-			}
+			parseTransform(boneXML[ConstValues.TRANSFORM][0], boneData.global);
+			boneData.transform.copy(boneData.global);
 			
 			for each(var rectangleXML:XML in boneXML[ConstValues.RECTANGLE])
 			{
@@ -236,7 +228,7 @@
 			var slotData:SlotData = new SlotData();
 			slotData.name = slotXML.@[ConstValues.A_NAME];
 			slotData.parent = slotXML.@[ConstValues.A_PARENT];
-			slotData.zOrder = getNumber(slotXML, ConstValues.A_Z_ORDER, 0) || 0;
+			slotData.zOrder = Number(slotXML.@[ConstValues.A_Z_ORDER]);
 			slotData.blendMode = slotXML.@[ConstValues.A_BLENDMODE];
 			for each(var displayXML:XML in slotXML[ConstValues.DISPLAY])
 			{
@@ -264,14 +256,14 @@
 		}
 		
 		/** @private */
-		dragonBones_internal static function parseAnimationData(animationXML:XML, armatureData:ArmatureData, frameRate:uint, isGlobalData:Boolean):AnimationData
+		dragonBones_internal static function parseAnimationData(animationXML:XML, armatureData:ArmatureData, frameRate:uint):AnimationData
 		{
 			var animationData:AnimationData = new AnimationData();
 			animationData.name = animationXML.@[ConstValues.A_NAME];
 			animationData.frameRate = frameRate;
 			animationData.duration = Math.round((int(animationXML.@[ConstValues.A_DURATION]) || 1) * 1000 / frameRate);
-			animationData.playTimes = int(getNumber(animationXML, ConstValues.A_LOOP, 1));
-			animationData.fadeTime = getNumber(animationXML, ConstValues.A_FADE_IN_TIME, 0) || 0;
+			animationData.playTimes = int(animationXML.@[ConstValues.A_LOOP]);
+			animationData.fadeTime = Number(animationXML.@[ConstValues.A_FADE_IN_TIME]);
 			animationData.scale = getNumber(animationXML, ConstValues.A_SCALE, 1) || 0;
 			//use frame tweenEase, NaN
 			//overwrite frame tweenEase, [-1, 0):ease in, 0:line easing, (0, 1]:ease out, (1, 2]:ease in out
@@ -280,7 +272,7 @@
 			
 			for each(var frameXML:XML in animationXML[ConstValues.FRAME])
 			{
-				var frame:Frame = parseTransformFrame(frameXML, frameRate, isGlobalData);
+				var frame:Frame = parseTransformFrame(frameXML, frameRate);
 				animationData.addFrame(frame);
 			}
 			
@@ -289,7 +281,7 @@
 			var lastFrameDuration:int = animationData.duration;
 			for each(var timelineXML:XML in animationXML[ConstValues.TIMELINE])
 			{
-				var timeline:TransformTimeline = parseTransformTimeline(timelineXML, animationData.duration, frameRate, isGlobalData);
+				var timeline:TransformTimeline = parseTransformTimeline(timelineXML, animationData.duration, frameRate);
 				lastFrameDuration = Math.min(lastFrameDuration, timeline.frameList[timeline.frameList.length - 1].duration);
 				animationData.addTimeline(timeline);
 			}
@@ -301,24 +293,22 @@
 			animationData.lastFrameDuration = lastFrameDuration;
 			
 			DBDataUtil.addHideTimeline(animationData, armatureData);
-			DBDataUtil.transformAnimationData(animationData, armatureData, isGlobalData);
+			DBDataUtil.transformAnimationData(animationData, armatureData);
 			
 			return animationData;
 		}
 		
-		private static function parseTransformTimeline(timelineXML:XML, duration:int, frameRate:uint, isGlobalData:Boolean):TransformTimeline
+		private static function parseTransformTimeline(timelineXML:XML, duration:int, frameRate:uint):TransformTimeline
 		{
 			var timeline:TransformTimeline = new TransformTimeline();
 			timeline.name = timelineXML.@[ConstValues.A_NAME];
 			timeline.scale = getNumber(timelineXML, ConstValues.A_SCALE, 1) || 0;
 			timeline.offset = getNumber(timelineXML, ConstValues.A_OFFSET, 0) || 0;
-			timeline.originPivot.x = getNumber(timelineXML, ConstValues.A_PIVOT_X, 0) || 0;
-			timeline.originPivot.y = getNumber(timelineXML, ConstValues.A_PIVOT_Y, 0) || 0;
 			timeline.duration = duration;
 			
 			for each(var frameXML:XML in timelineXML[ConstValues.FRAME])
 			{
-				var frame:TransformFrame = parseTransformFrame(frameXML, frameRate, isGlobalData);
+				var frame:TransformFrame = parseTransformFrame(frameXML, frameRate);
 				timeline.addFrame(frame);
 			}
 			
@@ -334,7 +324,7 @@
 			return frame;
 		}
 		
-		private static function parseTransformFrame(frameXML:XML, frameRate:uint, isGlobalData:Boolean):TransformFrame
+		private static function parseTransformFrame(frameXML:XML, frameRate:uint):TransformFrame
 		{
 			var frame:TransformFrame = new TransformFrame();
 			parseFrame(frameXML, frame, frameRate);
@@ -343,21 +333,18 @@
 			
 			//NaN:no tween, 10:auto tween, [-1, 0):ease in, 0:line easing, (0, 1]:ease out, (1, 2]:ease in out
 			frame.tweenEasing = getNumber(frameXML, ConstValues.A_TWEEN_EASING, 10);
-			frame.tweenRotate = int(getNumber(frameXML, ConstValues.A_TWEEN_ROTATE,0));
+			frame.tweenRotate = int(frameXML.@[ConstValues.A_TWEEN_ROTATE]);
 			frame.tweenScale = getBoolean(frameXML, ConstValues.A_TWEEN_SCALE, true);
-			frame.displayIndex = int(getNumber(frameXML, ConstValues.A_DISPLAY_INDEX, 0));
+			frame.displayIndex = int(frameXML.@[ConstValues.A_DISPLAY_INDEX]);
 			
 			//如果为NaN，则说明没有改变过zOrder
-			frame.zOrder = getNumber(frameXML, ConstValues.A_Z_ORDER, isGlobalData ? NaN : 0);
+			frame.zOrder = getNumber(frameXML, ConstValues.A_Z_ORDER, NaN);
 			
-			parseTransform(frameXML[ConstValues.TRANSFORM][0], frame.transform, frame.pivot);
-			if(isGlobalData)//绝对数据
-			{
-				frame.global.copy(frame.transform);
-			}
+			parseTransform(frameXML[ConstValues.TRANSFORM][0], frame.global, frame.pivot);
+			frame.transform.copy(frame.global);
 			
-			frame.scaleOffset.x = getNumber(frameXML, ConstValues.A_SCALE_X_OFFSET, 0) || 0;
-			frame.scaleOffset.y = getNumber(frameXML, ConstValues.A_SCALE_Y_OFFSET, 0) || 0;
+			frame.scaleOffset.x = getNumber(frameXML, ConstValues.A_SCALE_X_OFFSET, 0);
+			frame.scaleOffset.y = getNumber(frameXML, ConstValues.A_SCALE_Y_OFFSET, 0);
 			
 			var colorTransformXML:XML = frameXML[ConstValues.COLOR_TRANSFORM][0];
 			if(colorTransformXML)
@@ -398,17 +385,17 @@
 			{
 				if(transform)
 				{
-					transform.x = getNumber(transformXML, ConstValues.A_X, 0) || 0;
-					transform.y = getNumber(transformXML, ConstValues.A_Y, 0) || 0;
-					transform.skewX = getNumber(transformXML, ConstValues.A_SKEW_X, 0) * ConstValues.ANGLE_TO_RADIAN || 0;
-					transform.skewY = getNumber(transformXML, ConstValues.A_SKEW_Y, 0) * ConstValues.ANGLE_TO_RADIAN || 0;
+					transform.x = Number(transformXML.@[ConstValues.A_X]) || 0;
+					transform.y = Number(transformXML.@[ConstValues.A_Y]) || 0;
+					transform.skewX = Number(transformXML.@[ConstValues.A_SKEW_X]) * ConstValues.ANGLE_TO_RADIAN || 0;
+					transform.skewY = Number(transformXML.@[ConstValues.A_SKEW_Y]) * ConstValues.ANGLE_TO_RADIAN || 0;
 					transform.scaleX = getNumber(transformXML, ConstValues.A_SCALE_X, 1) || 0;
 					transform.scaleY = getNumber(transformXML, ConstValues.A_SCALE_Y, 1) || 0;
 				}
 				if(pivot)
 				{
-					pivot.x = getNumber(transformXML, ConstValues.A_PIVOT_X, 0) || 0;
-					pivot.y = getNumber(transformXML, ConstValues.A_PIVOT_Y, 0) || 0;
+					pivot.x = Number(transformXML.@[ConstValues.A_PIVOT_X]) || 0;
+					pivot.y = Number(transformXML.@[ConstValues.A_PIVOT_Y]) || 0;
 				}
 			}
 		}
@@ -424,17 +411,17 @@
 					colorTransform.greenOffset = int(colorTransformXML.@[ConstValues.A_GREEN_OFFSET]);
 					colorTransform.blueOffset = int(colorTransformXML.@[ConstValues.A_BLUE_OFFSET]);
 					
-					colorTransform.alphaMultiplier = int(getNumber(colorTransformXML, ConstValues.A_ALPHA_MULTIPLIER, 100) || 100) * 0.01;
-					colorTransform.redMultiplier = int(getNumber(colorTransformXML, ConstValues.A_RED_MULTIPLIER, 100) || 100) * 0.01;
-					colorTransform.greenMultiplier = int(getNumber(colorTransformXML, ConstValues.A_GREEN_MULTIPLIER, 100) || 100) * 0.01;
-					colorTransform.blueMultiplier = int(getNumber(colorTransformXML, ConstValues.A_BLUE_MULTIPLIER, 100) || 100) * 0.01;
+					colorTransform.alphaMultiplier = int(colorTransformXML.@[ConstValues.A_ALPHA_MULTIPLIER]) * 0.01;
+					colorTransform.redMultiplier = int(colorTransformXML.@[ConstValues.A_RED_MULTIPLIER]) * 0.01;
+					colorTransform.greenMultiplier = int(colorTransformXML.@[ConstValues.A_GREEN_MULTIPLIER]) * 0.01;
+					colorTransform.blueMultiplier = int(colorTransformXML.@[ConstValues.A_BLUE_MULTIPLIER]) * 0.01;
 				}
 			}
 		}
 		
 		private static function getBoolean(data:XML, key:String, defaultValue:Boolean):Boolean
 		{
-			if(data && data.@[key].length() > 0)
+			if(data.@[key].length() > 0)
 			{
 				switch(String(data.@[key]))
 				{
@@ -457,7 +444,7 @@
 		
 		private static function getNumber(data:XML, key:String, defaultValue:Number):Number
 		{
-			if(data && data.@[key].length() > 0)
+			if(data.@[key].length() > 0)
 			{
 				switch(String(data.@[key]))
 				{
