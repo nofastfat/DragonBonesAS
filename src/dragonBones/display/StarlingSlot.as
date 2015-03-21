@@ -1,6 +1,7 @@
 ﻿package dragonBones.display
 {
 	import flash.display.BlendMode;
+	import flash.geom.ColorTransform;
 	import flash.geom.Matrix;
 	
 	import dragonBones.Armature;
@@ -16,6 +17,7 @@
 	
 	public class StarlingSlot extends Slot
 	{
+		private static const COLOR_TRANSFORM:ColorTransform = new ColorTransform();
 		private var _starlingDisplay:DisplayObject;
 		
 		public var updateMatrix:Boolean;
@@ -157,7 +159,17 @@
 				_starlingDisplay.alpha = aMultiplier;
 				if (_starlingDisplay is Quad)
 				{
-					(_starlingDisplay as Quad).color = (uint(rMultiplier * 0xff) << 16) + (uint(gMultiplier * 0xff) << 8) + uint(bMultiplier * 0xff);
+					//TODO 修改DB源码，用以支持FlashPro中的ColorEffect,还需大量测试
+					COLOR_TRANSFORM.alphaMultiplier = aMultiplier;
+					COLOR_TRANSFORM.alphaOffset = aOffset;
+					COLOR_TRANSFORM.blueMultiplier = bMultiplier;
+					COLOR_TRANSFORM.blueOffset = bOffset;
+					COLOR_TRANSFORM.greenMultiplier = gMultiplier;
+					COLOR_TRANSFORM.greenOffset = gOffset;
+					COLOR_TRANSFORM.redMultiplier = rMultiplier;
+					COLOR_TRANSFORM.redOffset = rOffset;
+					(_starlingDisplay as Quad).color = COLOR_TRANSFORM.color;
+//					(_starlingDisplay as Quad).color = (uint(rMultiplier * 0xff) << 16) + (uint(gMultiplier * 0xff) << 8) + uint(bMultiplier * 0xff);
 				}
 			}
 		}
